@@ -1,8 +1,574 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-	<key>URL</key>
-	<string>obsidian://open?vault=Obsidian%20Vault&amp;file=Twrchan.html</string>
-</dict>
-</plist>
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Twrchan — Tam Spec (Tek Dosya)</title>
+<style>
+:root{--accent:#ff5252;--panel-bg:rgba(8,8,8,0.94);}
+html,body{height:100%;margin:0;background:#000;color:#eee;font-family:Segoe UI, Roboto, Arial, monospace;overflow:hidden;}
+/* Sol panel */
+#panel{
+  position:fixed; left:0; top:0; width:360px; height:100vh;
+  background:var(--panel-bg); border-right:2px solid rgba(255,82,82,0.12);
+  padding:12px; box-sizing:border-box; z-index:9999; display:flex; flex-direction:column; gap:10px;
+}
+.header{display:flex;justify-content:space-between;align-items:center}
+.title{font-weight:800;color:#fff}
+.controls{display:flex;gap:6px}
+button{background:var(--accent); color:#fff; border:none; padding:6px 10px; cursor:pointer; border-radius:6px; font-weight:700}
+button.secondary{background:#444}
+#editor{background:#000;color:#ff4444;border:1px solid #222;padding:8px;font-family:monospace;font-size:14px;width:100%;height:56vh;resize:vertical;box-sizing:border-box;outline:none}
+#out{background:#060606;color:#bfb;border:1px solid #222;padding:8px;font-family:monospace;font-size:13px;height:22vh;overflow:auto;box-sizing:border-box;white-space:pre-wrap}
+.note{color:#bbb;font-size:12px}
+/* Oyun alanı sağ */
+#canvasWrap{position:fixed; left:360px; top:0; right:0; bottom:0; background:#0a0a0a; display:flex; align-items:center; justify-content:center}
+canvas{background:#0b0b0b; display:block; width:100%; height:100%;}
+/* HUD */
+#hud{position:fixed; right:18px; top:14px; z-index:9998; color:#fff; font-weight:700; text-shadow:0 2px 6px rgba(0,0,0,0.7); font-size:18px; background:rgba(0,0,0,0.35); padding:6px 10px; border-radius:8px;}
+/* Help */
+#helpModal{position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,0.75); z-index:10000}
+#helpCard{width:820px; max-width:95vw; max-height:86vh; overflow:auto; background:#0b0b0c; border:3px solid var(--accent); padding:18px; color:#eee; box-sizing:border-box; font-family:monospace}
+#helpCard h2{color:var(--accent); margin:0 0 8px 0;}
+@media (max-width:900px){ #panel{width:320px;} #canvasWrap{left:320px;} }
+</style>
+</head>
+<body>
+
+<div id="panel" role="region" aria-label="Twrchan editör">
+  <div class="header">
+    <div class="title">Twrchan — Editör (Spec)</div>
+    <div class="controls">
+      <button id="helpBtn" class="secondary">Yardım</button>
+      <button id="saveBtn">Kaydet</button>
+      <button id="loadBtn" class="secondary">Yükle</button>
+      <button id="runBtn">Çalıştır</button>
+    </div>
+  </div>
+
+  <textarea id="editor" spellcheck="false" placeholder="Twrchan kodunu buraya yaz."></textarea>
+
+  <div id="out" aria-live="polite"></div>
+
+  <div style="display:flex;justify-content:space-between;align-items:center;">
+    <div class="note">Space + Sol tık: taşı (basılı tutarak sürükle). Z + Sol tık: sil. W A S D veya ok tuşları ile hareket.</div>
+    <div class="note">Editördeyken karakter hareket etmez.</div>
+  </div>
+</div>
+
+<div id="canvasWrap">
+  <canvas id="canvas"></canvas>
+</div>
+
+<div id="hud">Can: <span id="hudCan">0</span> &nbsp; | &nbsp; Puan: <span id="hudPuan">0</span></div>
+
+<!-- Help modal -->
+<div id="helpModal" role="dialog" aria-hidden="true">
+  <div id="helpCard">
+    <h2>Twrchan Komut Rehberi (Tam Spec)</h2>
+    <pre>
+Zorunlu:
+  baslat:kod
+  ...
+  bitir:kod
+
+Ekleme:
+  ekle.parca = 'isim'
+  ekle.hasarparca = 'isim'
+  ekle.daire = 'isim'
+  ekle.ucgen = 'isim'
+  ekle.hasarucgen = 'isim'
+  ekle.hasardaire = 'isim'
+  ekle.karakter = 'isim'
+
+Renk:
+  renk.isim:mavi
+  desteklenen: mavi, beyaz, siyah, mor, pembe, sari, turuncu, kirmizi, yesil, kahverengi
+
+Boyut:
+  boyut.isim = 3x3
+
+Yazı:
+  yaz.pt1 = 'merhaba' (5)   # pt1 e temas edince 5 saniye göster
+
+Kazan:
+  kazan:bitpart,yaz = 'kazandın'
+
+Kapı & Anahtar:
+  kapi.parca1
+  anahtar.parca2
+
+Görünmez:
+  gorunmez.parca1
+
+Şeffaflık:
+  seffaflik.parca1 = 1..10
+
+Can:
+  can.parca1 = 5       # can veren
+  can.parca1 = -5      # hasar (hasarparca ile birlikte anlamlı)
+  can.karakter = 5
+
+Karakter ayarları:
+  hiz.karakter = 5
+  karakter.olum:hayir / karakter.olum:evet
+  karakter.yenidendogar:evet / karakter.yenidendogma:hayir
+
+Puan:
+  ekle.karakter.puan
+  puan.parca1:evet, puan = 5
+  puan.ekle.karakter = oyun.kazan, puan = 5
+  karakter.oldu = puan = -5
+
+Diğer:
+  kod.isim:goster   # çıktıda sahnedeki tüm parçaların özellikleri gösterilir
+    </pre>
+    <div style="display:flex;justify-content:flex-end;margin-top:10px">
+      <button id="closeHelp">Kapat</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ---------------- Twrchan: Spec-faithful single-file implementation ---------------- */
+
+const PANEL_WIDTH = 360;
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+function resize(){ canvas.width = Math.max(400, window.innerWidth - PANEL_WIDTH); canvas.height = Math.max(300, window.innerHeight); }
+window.addEventListener('resize', resize); resize();
+
+/* DOM */
+const editor = document.getElementById('editor');
+const runBtn = document.getElementById('runBtn');
+const saveBtn = document.getElementById('saveBtn');
+const loadBtn = document.getElementById('loadBtn');
+const helpBtn = document.getElementById('helpBtn');
+const helpModal = document.getElementById('helpModal');
+const closeHelp = document.getElementById('closeHelp');
+const outBox = document.getElementById('out');
+const hudCan = document.getElementById('hudCan');
+const hudPuan = document.getElementById('hudPuan');
+
+/* Colors map */
+const COLORS = { mavi:'#2f6cff', beyaz:'#ffffff', siyah:'#000000', mor:'#9b59b6', pembe:'#ff66a3', sari:'#ffd700', turuncu:'#ff8c42', kirmizi:'#ff4c4c', yesil:'#2ecc71', kahverengi:'#8b5a2b' };
+
+/* Units */
+const UNIT = 30;
+
+/* Input */
+const keys = {};
+let spacePressed=false, zPressed=false;
+window.addEventListener('keydown', e => {
+  keys[e.key.toLowerCase()] = true;
+  if (e.key === ' ') spacePressed = true;
+  if (e.key.toLowerCase() === 'z') zPressed = true;
+});
+window.addEventListener('keyup', e => {
+  keys[e.key.toLowerCase()] = false;
+  if (e.key === ' ') spacePressed = false;
+  if (e.key.toLowerCase() === 'z') zPressed = false;
+});
+
+/* Mouse dragging & delete */
+let mouseDown=false, dragObj=null, dragOffset={x:0,y:0};
+canvas.addEventListener('mousedown', e=>{
+  mouseDown=true;
+  const pos=getMousePos(e);
+  if (spacePressed) {
+    const hits = pickAt(pos.x,pos.y).filter(o=>o && o.name !== 'karakter');
+    if (hits.length) { dragObj=hits[0]; dragOffset.x = pos.x - dragObj.x; dragOffset.y = pos.y - dragObj.y; }
+  } else if (zPressed) {
+    const hits = pickAt(pos.x,pos.y).filter(o=>o && o.name !== 'karakter');
+    if (hits.length) { delete world.objects[hits[0].name]; world.order = world.order.filter(n=>n!==hits[0].name); log(`[silindi] ${hits[0].name}`); }
+  }
+});
+canvas.addEventListener('mousemove', e=>{
+  if (!dragObj || !mouseDown) return;
+  const pos=getMousePos(e);
+  const nx = pos.x - dragOffset.x, ny = pos.y - dragOffset.y;
+  const cx = Math.max(0, Math.min(canvas.width - dragObj.w, nx));
+  const cy = Math.max(0, Math.min(canvas.height - dragObj.h, ny));
+  // don't allow overlap with solid objects
+  let canPlace=true;
+  for (let nm of world.order) {
+    const o = world.objects[nm];
+    if (!o || !o.visible) continue;
+    if (o.name === dragObj.name) continue;
+    if (o.solid !== false && rectsIntersect(cx,cy,dragObj.w,dragObj.h, o.x,o.y,o.w,o.h)) { canPlace=false; break; }
+  }
+  if (world.player && rectsIntersect(cx,cy,dragObj.w,dragObj.h, world.player.x,world.player.y, world.player.w, world.player.h)) canPlace=false;
+  if (canPlace) { dragObj.x = cx; dragObj.y = cy; }
+});
+window.addEventListener('mouseup', e=>{ mouseDown=false; dragObj=null; });
+
+function getMousePos(e){ const r=canvas.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
+function pickAt(x,y){ const hits=[]; for (let i=0;i<world.order.length;i++){ const name=world.order[i]; const o=world.objects[name]; if (!o || !o.visible) continue; if (x>=o.x && x<=o.x+o.w && y>=o.y && y<=o.y+o.h) hits.push(o); } return hits.reverse(); }
+
+/* Logging */
+function log(m){ outBox.textContent += m + "\n"; outBox.scrollTop = outBox.scrollHeight; }
+function error(m){ outBox.textContent += "HATA: " + m + "\n"; outBox.scrollTop = outBox.scrollHeight; }
+
+/* World */
+let world = null;
+function newWorld(){ world = { objects:{}, order:[], player:null, score:0, winScoreOnWin:0, deathScoreDelta:0, running:false, gameOver:false, showNamesOutput:false }; }
+
+/* Helpers */
+function rectsIntersect(ax,ay,aw,ah, bx,by,bw,bh){ return !(bx >= ax+aw || bx+bw <= ax || by >= ay+ah || by+bh <= ay); }
+
+/* Parser: full support per your spec */
+function parse(code){
+  newWorld();
+  outBox.textContent = '';
+  const lines = code.split('\n').map(l=>l.replace(/\r/g,'')).map(l=>l.trim()).filter(l=>l && !l.startsWith('//'));
+  if (lines.length===0) { error('Kod boş.'); return false; }
+  if (lines[0].toLowerCase() !== 'baslat:kod') { error('Kod baslat:kod ile başlamalı.'); return false; }
+  if (lines[lines.length-1].toLowerCase() !== 'bitir:kod') { error('Kod bitir:kod ile bitmeli.'); return false; }
+
+  function createPart(name,type){
+    if (world.objects[name]) throw `Aynı isimde parça var: ${name}`;
+    const idx = Object.keys(world.objects).length;
+    const p = {
+      name, type,
+      x: 120 + (idx%6)*(UNIT+8), y: 80 + Math.floor(idx/6)*(UNIT+8),
+      w: UNIT, h: UNIT,
+      color: '#888', visible:true, opacity:1,
+      isCircle:false, isTriangle:false,
+      damage:0, heal:0, text:null, textMs:0, win:false, winText:null,
+      isKey:false, isDoor:false, givesScore:0, solid:true,
+      _picked:false, _lastHit:0, _textShown:false
+    };
+    world.objects[name]=p; world.order.push(name); return p;
+  }
+
+  try {
+    for (let i=1;i<lines.length-1;i++){
+      const line = lines[i];
+
+      // kod.isim:goster
+      if (/^kod\.isim:goster$/i.test(line)) { world.showNamesOutput = true; continue; }
+
+      // ekle.karakter = 'isim'
+      if (/^ekle\.karakter\s*=\s*'([^']+)'$/i.test(line)){
+        const display = line.match(/^ekle\.karakter\s*=\s*'([^']+)'$/i)[1];
+        const p = { name:'karakter', type:'karakter', x:40, y:40, w:UNIT, h:UNIT, color:COLORS.sari||'#FFD700', visible:true, opacity:1, solid:true };
+        world.objects['karakter'] = p; world.order.unshift('karakter');
+        world.player = { x:p.x, y:p.y, w:p.w, h:p.h, speed:4, can:10, alive:true, respawn:true, immortal:false, displayName:display, hasScoreSlot:false };
+        continue;
+      }
+
+      // ekle.* variants
+      if (/^ekle\.parca\s*=\s*'([^']+)'$/i.test(line)) { createPart(RegExp.$1,'parca'); continue; }
+      if (/^ekle\.hasarparca\s*=\s*'([^']+)'$/i.test(line)) { const o=createPart(RegExp.$1,'hasarparca'); o.damage = 5; o.solid=true; continue; }
+      if (/^ekle\.daire\s*=\s*'([^']+)'$/i.test(line)) { const o=createPart(RegExp.$1,'daire'); o.isCircle=true; continue; }
+      if (/^ekle\.ucgen\s*=\s*'([^']+)'$/i.test(line)) { const o=createPart(RegExp.$1,'ucgen'); o.isTriangle=true; continue; }
+      if (/^ekle\.hasarucgen\s*=\s*'([^']+)'$/i.test(line)) { const o=createPart(RegExp.$1,'hasarucgen'); o.isTriangle=true; o.damage=5; o.solid=true; continue; }
+      if (/^ekle\.hasardaire\s*=\s*'([^']+)'$/i.test(line)) { const o=createPart(RegExp.$1,'hasardaire'); o.isCircle=true; o.damage=5; o.solid=true; continue; }
+
+      // renk.isim:mavi
+      if (/^renk\.([a-zA-Z0-9_]+)\s*:\s*([a-zçğıöşü]+)/i.test(line)){
+        const m = line.match(/^renk\.([a-zA-Z0-9_]+)\s*:\s*([a-zçğıöşü]+)/i);
+        const name=m[1], colorKey=m[2].toLowerCase();
+        if (!world.objects[name]) throw `Parça bulunamadı: ${name}`;
+        const col = COLORS[colorKey]; if (!col) throw `Renk desteklenmiyor: ${colorKey}`;
+        world.objects[name].color = col; continue;
+      }
+
+      // boyut.isim = 3x3
+      if (/^boyut\.([a-zA-Z0-9_]+)\s*=\s*(\d+)x(\d+)$/i.test(line)){
+        const m=line.match(/^boyut\.([a-zA-Z0-9_]+)\s*=\s*(\d+)x(\d+)$/i);
+        const name=m[1], w=parseInt(m[2]), h=parseInt(m[3]);
+        if (!world.objects[name]) throw `Parça bulunamadı: ${name}`;
+        world.objects[name].w = w*UNIT; world.objects[name].h = h*UNIT; continue;
+      }
+
+      // yaz.parca = '...' (5)
+      if (/^yaz\.([a-zA-Z0-9_]+)\s*=\s*'([^']+)'\s*\(\s*(\d+)\s*\)$/i.test(line)){
+        const m=line.match(/^yaz\.([a-zA-Z0-9_]+)\s*=\s*'([^']+)'\s*\(\s*(\d+)\s*\)$/i);
+        const name=m[1], text=m[2], sec=parseInt(m[3]);
+        if (!world.objects[name]) throw `Parça bulunamadı: ${name}`;
+        world.objects[name].text = text; world.objects[name].textMs = sec*1000; continue;
+      }
+
+      // kazan:parca,yaz = '...'
+      if (/^kazan:([a-zA-Z0-9_]+)\s*,\s*yaz\s*=\s*'([^']+)'$/i.test(line)){
+        const m=line.match(/^kazan:([a-zA-Z0-9_]+)\s*,\s*yaz\s*=\s*'([^']+)'$/i);
+        const name=m[1], txt=m[2];
+        if (!world.objects[name]) throw `Parça bulunamadı: ${name}`;
+        world.objects[name].win=true; world.objects[name].winText=txt; continue;
+      }
+
+      // kapi / anahtar
+      if (/^kapi\.([a-zA-Z0-9_]+)$/i.test(line)){ const name=line.match(/^kapi\.([a-zA-Z0-9_]+)$/i)[1]; if (!world.objects[name]) throw `Parça bulunamadı: ${name}`; world.objects[name].isDoor=true; world.objects[name].solid=true; continue; }
+      if (/^anahtar\.([a-zA-Z0-9_]+)$/i.test(line)){ const name=line.match(/^anahtar\.([a-zA-Z0-9_]+)$/i)[1]; if (!world.objects[name]) throw `Parça bulunamadı: ${name}`; world.objects[name].isKey=true; world.objects[name].solid=false; continue; }
+
+      // gorunmez
+      if (/^gorunmez\.([a-zA-Z0-9_]+)$/i.test(line)){ const name=line.match(/^gorunmez\.([a-zA-Z0-9_]+)$/i)[1]; if (!world.objects[name]) throw `Parça bulunamadı: ${name}`; world.objects[name].visible=false; world.objects[name].opacity=0; continue; }
+
+      // seffaflik
+      if (/^seffaflik\.([a-zA-Z0-9_]+)\s*=\s*(\d+)$/i.test(line)){
+        const m=line.match(/^seffaflik\.([a-zA-Z0-9_]+)\s*=\s*(\d+)$/i); const name=m[1], val=Math.max(1,Math.min(10,parseInt(m[2])));
+        if (!world.objects[name]) throw `Parça bulunamadı: ${name}`; world.objects[name].opacity = 1 - (val-1)/9; continue;
+      }
+
+      // can
+      if (/^can\.([a-zA-Z0-9_]+)\s*=\s*(-?\d+)$/i.test(line)){
+        const m=line.match(/^can\.([a-zA-Z0-9_]+)\s*=\s*(-?\d+)$/i); const name=m[1], val=parseInt(m[2]);
+        if (name.toLowerCase()==='karakter'){ if (!world.player) throw 'Karakter tanımlı değil.'; world.player.can = val; continue; }
+        if (!world.objects[name]) throw `Parça bulunamadı: ${name}`;
+        if (world.objects[name].type && world.objects[name].type.includes('hasar')) world.objects[name].damage = Math.abs(val);
+        else world.objects[name].heal = val;
+        continue;
+      }
+
+      // hiz.karakter = 5
+      if (/^hiz\.karakter\s*=\s*(\d+)$/i.test(line)){ const v=parseInt(line.match(/^hiz\.karakter\s*=\s*(\d+)$/i)[1]); if (!world.player) throw 'Karakter tanımlı değil.'; world.player.speed = v; continue; }
+
+      // karakter.olum
+      if (/^karakter\.olum\s*:\s*(evet|hayir)$/i.test(line)){ const v=line.match(/^karakter\.olum\s*:\s*(evet|hayir)$/i)[1]; if (!world.player) throw 'Karakter tanımlı değil.'; world.player.immortal = (v.toLowerCase()==='hayir'); continue; }
+
+      // karakter.yenidendogar
+      if (/^karakter\.yenidendogar\s*:\s*(evet|hayir)$/i.test(line)){ const v=line.match(/^karakter\.yenidendogar\s*:\s*(evet|hayir)$/i)[1]; if (!world.player) throw 'Karakter tanımlı değil.'; world.player.respawn = (v.toLowerCase()==='evet'); continue; }
+
+      // ekle.karakter.puan
+      if (/^ekle\.karakter\.puan$/i.test(line)){ if (!world.player) throw 'Karakter tanımlı değil.'; world.player.hasScoreSlot = true; continue; }
+
+      // puan.parca:evet, puan = N
+      if (/^puan\.([a-zA-Z0-9_]+)\s*:\s*evet\s*,\s*puan\s*=\s*(-?\d+)$/i.test(line)){
+        const m=line.match(/^puan\.([a-zA-Z0-9_]+)\s*:\s*evet\s*,\s*puan\s*=\s*(-?\d+)$/i); const name=m[1], val=parseInt(m[2]);
+        if (!world.objects[name]) throw `Parça bulunamadı: ${name}`; world.objects[name].givesScore = val; continue;
+      }
+
+      // puan.ekle.karakter = oyun.kazan, puan = N
+      if (/^puan\.ekle\.karakter\s*=\s*oyun\.kazan\s*,\s*puan\s*=\s*(-?\d+)$/i.test(line)){
+        const v=parseInt(line.match(/^puan\.ekle\.karakter\s*=\s*oyun\.kazan\s*,\s*puan\s*=\s*(-?\d+)$/i)[1]);
+        world.winScoreOnWin = v; continue;
+      }
+
+      // karakter.oldu = puan = -N
+      if (/^karakter\.oldu\s*=\s*puan\s*=\s*(-?\d+)$/i.test(line)){
+        const v=parseInt(line.match(/^karakter\.oldu\s*=\s*puan\s*=\s*(-?\d+)$/i)[1]); world.deathScoreDelta = v; continue;
+      }
+
+      throw `Bilinmeyen komut: ${line}`;
+    }
+
+    if (!world.player) throw 'Karakter tanımlanmadı. ekle.karakter = \'isim\' kullanın.';
+    // ensure karakter obj
+    if (!world.objects['karakter']) { world.objects['karakter'] = { name:'karakter', type:'karakter', x:world.player.x, y:world.player.y, w:world.player.w, h:world.player.h, color:COLORS.sari||'#FFD700', visible:true, opacity:1, solid:true }; world.order.unshift('karakter'); }
+    else { const k = world.objects['karakter']; world.player.x = k.x; world.player.y = k.y; world.player.w = k.w; world.player.h = k.h; }
+    world.score = 0;
+    log('Kod yüklendi. Çalıştırmak için "Çalıştır" a basın.');
+    if (world.showNamesOutput) showAllPartsInOutput();
+    return true;
+  } catch(e) { error(String(e)); return false; }
+}
+
+/* show parts listing in output */
+function showAllPartsInOutput(){
+  log('--- Sahne Parçaları ---');
+  for (let name of world.order){
+    const o = world.objects[name];
+    if (!o) continue;
+    log(`${o.name}: tür=${o.type || 'parca'}, renk=${o.color}, görünür=${o.visible}, şeffaflik=${o.opacity}, boyut=${o.w/UNIT}x${o.h/UNIT}, solid=${o.solid}, damage=${o.damage}, heal=${o.heal}, puan=${o.givesScore}`);
+  }
+  log('-----------------------');
+}
+
+/* Game loop */
+let last = performance.now();
+function startLoop(){ last = performance.now(); requestAnimationFrame(loop); }
+function loop(t){
+  const dt = t - last; last = t;
+  if (world && world.running && !world.gameOver) update(dt);
+  render();
+  requestAnimationFrame(loop);
+}
+
+/* Update movement + collisions */
+function update(dt){
+  if (!world || !world.player || !world.player.alive) return;
+  const p = world.player;
+  const step = p.speed;
+  let dx=0, dy=0;
+  if (keys['w'] || keys['arrowup']) dy -= step;
+  if (keys['s'] || keys['arrowdown']) dy += step;
+  if (keys['a'] || keys['arrowleft']) dx -= step;
+  if (keys['d'] || keys['arrowright']) dx += step;
+  const steps = Math.max(1, Math.ceil(Math.max(Math.abs(dx), Math.abs(dy))));
+  const sx = dx/steps, sy = dy/steps;
+  for (let i=0;i<steps;i++){
+    const nx = p.x + sx, ny = p.y + sy;
+    const cx = Math.max(0, Math.min(canvas.width - p.w, nx));
+    const cy = Math.max(0, Math.min(canvas.height - p.h, ny));
+    let blocked = false;
+    for (let name of world.order) {
+      const o = world.objects[name];
+      if (!o || !o.visible) continue;
+      if (o.name === 'karakter') continue;
+      if (o.solid !== false && rectsIntersect(cx,cy,p.w,p.h, o.x,o.y,o.w,o.h)) { blocked = true; break; }
+    }
+    if (!blocked) { p.x = cx; p.y = cy; world.objects['karakter'].x = p.x; world.objects['karakter'].y = p.y; }
+  }
+  handleInteractions();
+}
+
+/* Interactions: damage (cooldown), text, key-door, score, win, death */
+function handleInteractions(){
+  const p = world.player;
+  const now = performance.now();
+  for (let name of [...world.order]) {
+    if (name === 'karakter') continue;
+    const o = world.objects[name];
+    if (!o || !o.visible) continue;
+    if (rectsIntersect(p.x,p.y,p.w,p.h, o.x,o.y,o.w,o.h)) {
+      // heal
+      if (o.heal && o.heal !== 0) {
+        p.can += o.heal;
+        log(`[can] ${o.name} ile temas: ${o.heal>0? '+'+o.heal : o.heal}`);
+        o.heal = 0;
+      }
+      // damage with cooldown 500 ms
+      if (o.damage && o.damage !== 0) {
+        const lastHit = o._lastHit || 0;
+        if (now - lastHit > 500) {
+          o._lastHit = now;
+          if (!p.immortal) {
+            p.can -= o.damage; if (p.can < 0) p.can = 0;
+            log(`[hasar] ${o.name} -${o.damage}`);
+            flashDamage();
+          } else {
+            log(`[hasar] ${o.name} vurdu fakat ölümsüz`);
+          }
+        }
+      }
+      // yaz (one-shot)
+      if (o.text && !o._textShown) {
+        o._textShown = true;
+        showFloating(o.text, o.textMs || 2000, o.x + o.w/2, o.y - 8);
+      }
+      // puan (one-shot)
+      if (o.givesScore && o.givesScore !== 0) {
+        world.score += o.givesScore;
+        log(`[puan] ${o.name} +${o.givesScore}`);
+        o.givesScore = 0;
+      }
+      // anahtar pickup
+      if (o.isKey && !o._picked) {
+        o._picked = true; o.visible=false; o.opacity=0; log(`[anahtar] ${o.name} alındı`);
+        let opened=false;
+        const keySuffix = o.name.replace(/[^0-9]+/g,'');
+        if (keySuffix) {
+          for (let nm of world.order) {
+            const d = world.objects[nm];
+            if (d && d.isDoor) {
+              const dsuf = d.name.replace(/[^0-9]+/g,'');
+              if (dsuf === keySuffix) { d.visible=false; d.opacity=0; opened=true; log(`[kapı] ${d.name} açıldı`); break; }
+            }
+          }
+        }
+        if (!opened) {
+          for (let nm of world.order) { const d = world.objects[nm]; if (d && d.isDoor) { d.visible=false; d.opacity=0; opened=true; log(`[kapı] ${d.name} açıldı`); break; } }
+        }
+      }
+      // kazan
+      if (o.win && !world.gameOver) {
+        world.gameOver = true;
+        world.running = false;
+        log(`[kazandınız] ${o.winText || 'Kazandınız!'}`);
+        showFloating(o.winText || 'Kazandınız!', 4000, canvas.width/2, canvas.height/2);
+        if (world.winScoreOnWin) { world.score += world.winScoreOnWin; log(`[puan] kazanma puanı: ${world.winScoreOnWin}`); }
+      }
+      // death handling
+      if (p.can <= 0) {
+        log('[ölüm] Can 0');
+        if (world.deathScoreDelta) { world.score += world.deathScoreDelta; log(`[puan] öldü: ${world.deathScoreDelta}`); }
+        if (p.respawn) {
+          p.can = 10; p.x = 40; p.y = 40; world.objects['karakter'].x = p.x; world.objects['karakter'].y = p.y; log('[yenidendoğma] oyuncu yeniden doğdu');
+        } else {
+          world.gameOver = true; world.running = false;
+        }
+      }
+    }
+  }
+  hudCan.textContent = world.player ? world.player.can : 0;
+  hudPuan.textContent = world.score || 0;
+}
+
+/* Floating messages */
+let floating = [];
+function showFloating(text, ms, x, y){ floating.push({text, start:performance.now(), ms, x, y}); }
+function drawFloating(){ const now=performance.now(); floating = floating.filter(f=> now - f.start <= f.ms); ctx.save(); ctx.font='20px Segoe UI'; ctx.fillStyle='#fff'; ctx.textAlign='center'; for (let f of floating) ctx.fillText(f.text, f.x, f.y - ((now - f.start)/30)); ctx.restore(); }
+
+/* Damage flash */
+let damageFlashUntil = 0;
+function flashDamage(){ damageFlashUntil = performance.now() + 180; }
+
+/* Render */
+function render(){
+  if (performance.now() < damageFlashUntil) { ctx.fillStyle='rgba(255,0,0,0.08)'; ctx.fillRect(0,0,canvas.width,canvas.height); } else { ctx.clearRect(0,0,canvas.width,canvas.height); }
+  for (let name of world.order) {
+    const o = world.objects[name];
+    if (!o || !o.visible) continue;
+    ctx.save(); ctx.globalAlpha = o.opacity!==undefined?o.opacity:1.0; ctx.fillStyle = o.color || '#888';
+    if (o.isCircle) { ctx.beginPath(); ctx.ellipse(o.x+o.w/2,o.y+o.h/2,o.w/2,o.h/2,0,0,Math.PI*2); ctx.fill(); }
+    else if (o.isTriangle) { ctx.beginPath(); ctx.moveTo(o.x+o.w/2,o.y); ctx.lineTo(o.x+o.w,o.y+o.h); ctx.lineTo(o.x,o.y+o.h); ctx.closePath(); ctx.fill(); }
+    else { ctx.fillRect(o.x,o.y,o.w,o.h); }
+    ctx.restore();
+  }
+  drawFloating();
+}
+
+/* UI handlers */
+runBtn.addEventListener('click', ()=> {
+  const code = editor.value;
+  const ok = parse(code);
+  if (ok) { world.running=true; world.gameOver=false; log('Oyun başlatıldı.'); startLoop(); }
+});
+saveBtn.addEventListener('click', ()=> { try { localStorage.setItem('twrchan_code', editor.value); log('Kod kaydedildi.'); } catch(e){ error('Kaydetme başarısız: '+e.message); } });
+loadBtn.addEventListener('click', ()=> { const c = localStorage.getItem('twrchan_code'); if (c) { editor.value=c; log('Kod yüklendi.'); } else error('Kayıtlı kod bulunamadı.'); });
+
+helpBtn.addEventListener('click', ()=> { helpModal.style.display='flex'; helpModal.setAttribute('aria-hidden','false'); });
+closeHelp.addEventListener('click', ()=> { helpModal.style.display='none'; helpModal.setAttribute('aria-hidden','true'); });
+
+window.addEventListener('keydown', e => { if (e.code==='Space' && e.target===document.body) e.preventDefault(); });
+
+/* Example (ready-to-run) */
+newWorld();
+editor.value = `baslat:kod
+ekle.karakter = 'oyuncu'
+can.karakter = 10
+hiz.karakter = 4
+ekle.karakter.puan
+
+ekle.parca = 'anahtar1'
+renk.anahtar1:mavi
+boyut.anahtar1 = 2x2
+
+ekle.parca = 'kapi1'
+renk.kapi1:kahverengi
+boyut.kapi1 = 4x2
+kapi.kapi1
+anahtar.anahtar1
+
+ekle.hasarparca = 'tuzak1'
+renk.tuzak1:kirmizi
+boyut.tuzak1 = 2x2
+can.tuzak1 = -3
+
+ekle.parca = 'hedef'
+renk.hedef:yesil
+boyut.hedef = 3x3
+kazan:hedef,yaz = 'Kazandın'
+puan.ekle.karakter = oyun.kazan, puan = 10
+
+kod.isim:goster
+bitir:kod`;
+log('Örnek kod hazır. Düzenleyip "Çalıştır" a basın.');
+
+/* expose world for debug */
+window.twrchan_world = () => world;
+
+</script>
+</body>
+</html>
